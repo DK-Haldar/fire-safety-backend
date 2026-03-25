@@ -1,0 +1,182 @@
+const express = require('express');
+const mongoose = require('mongoose');
+const cors = require('cors');
+const dotenv = require('dotenv');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+
+dotenv.config();
+
+const app = express();
+
+// Middleware
+app.use(cors());
+app.use(express.json());
+
+// MongoDB Connection
+mongoose.connect(process.env.MONGODB_URI || 'mongodb://localhost:27017/fire-safety-pro', {
+  useNewUrlParser: true,
+  useUnifiedTopology: true,
+})
+.then(() => console.log('✅ MongoDB Connected'))
+.catch(err => console.log('❌ MongoDB Error:', err));
+
+// Import Models
+const User = require('./models/User');
+const Product = require('./models/Product');
+const Order = require('./models/Order');
+const ServiceBooking = require('./models/ServiceBooking');
+
+// Import Routes
+const authRoutes = require('./routes/auth');
+const productRoutes = require('./routes/products');
+const orderRoutes = require('./routes/orders');
+const serviceRoutes = require('./routes/services');
+const paymentRoutes = require('./routes/payments');
+const adminRoutes = require('./routes/admin');
+
+// Use Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/services', serviceRoutes);
+app.use('/api/payments', paymentRoutes);
+app.use('/api/admin', adminRoutes);
+
+// ==================== MODELS (for backward compatibility) ====================
+const UserSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  email: { type: String, required: true, unique: true },
+  password: { type: String, required: true },
+  phone: { type: String, required: true },
+  address: {
+    street: String,
+    city: String,
+    state: String,
+    pincode: String,
+    country: { type: String, default: 'India' }
+  },
+  role: { type: String, enum: ['user', 'admin'], default: 'user' },
+  createdAt: { type: Date, default: Date.now }
+});
+
+UserSchema.pre('save', async function(next) {
+  if (!this.isModified('password')) return next();
+  this.password = await bcrypt.hash(this.password, 10);
+  next();
+});
+
+UserSchema.methods.comparePassword = async function(password) {
+  return await bcrypt.compare(password, this.password);
+};
+
+const ProductSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  category: { type: String, required: true },
+  price: { type: Number, required: true },
+  oldPrice: Number,
+  rating: { type: Number, default: 4.5 },
+  image: { type: String, required: true },
+  description: { type: String, required: true },
+  stock: { type: Number, default: 10 },
+  isActive: { type: Boolean, default: true },
+  createdAt: { type: Date, default: Date.now }
+});
+
+const ServiceBookingSchema = new mongoose.Schema({
+  bookingNumber: { type: String, unique: true },
+  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  serviceType: { type: String, required: true },
+  price: String,
+  duration: String,
+  description: String,
+  address: {
+    street: String,
+    city: String,
+    pincode: String
+  },
+  preferredDate: Date,
+  status: { type: String, enum: ['pending', 'confirmed', 'completed', 'cancelled'], default: 'pending' },
+  createdAt: { type: Date, default: Date.now }
+});
+
+ServiceBookingSchema.pre('save', function(next) {
+  if (!this.bookingNumber) {
+    this.bookingNumber = 'SRV-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6).toUpperCase();
+  }
+  next();
+});
+
+// Register models if not already registered
+if (!mongoose.models.User) mongoose.model('User', UserSchema);
+if (!mongoose.models.Product) mongoose.model('Product', ProductSchema);
+if (!mongoose.models.Order) mongoose.model('Order', OrderSchema);
+if (!mongoose.models.ServiceBooking) mongoose.model('ServiceBooking', ServiceBookingSchema);
+
+// ==================== INITIALIZE ADMIN USER ====================
+const initializeAdmin = async () => {
+  const UserModel = mongoose.model('User');
+  const adminExists = await UserModel.findOne({ email: 'admin@firesafety.com' });
+  if (!adminExists) {
+    const admin = new UserModel({
+      name: 'Admin User',
+      email: 'admin@firesafety.com',
+      password: 'admin123',
+      phone: '9999999999',
+      role: 'admin'
+    });
+    await admin.save();
+    console.log('✅ Admin user created: admin@firesafety.com / admin123');
+  }
+};
+
+// ==================== INITIALIZE SAMPLE PRODUCTS ====================
+const initializeProducts = async () => {
+  const ProductModel = mongoose.model('Product');
+  const productCount = await ProductModel.countDocuments();
+  if (productCount === 0) {
+    const sampleProducts = [
+      { name: 'ABC Powder Extinguisher 4kg', category: 'Extinguishers', price: 1999, oldPrice: 2499, rating: 4.8, image: 'https://picsum.photos/id/20/200/200', description: 'ISI marked ABC powder extinguisher', stock: 50 },
+      { name: 'CO2 Extinguisher 4.5kg', category: 'Extinguishers', price: 3999, oldPrice: 4599, rating: 4.9, image: 'https://picsum.photos/id/21/200/200', description: 'CO2 extinguisher for electrical fires', stock: 30 },
+      { name: 'Fire Blanket', category: 'Accessories', price: 999, rating: 4.6, image: 'https://picsum.photos/id/23/200/200', description: 'Fire blanket for kitchen safety', stock: 100 },
+    ];
+    await ProductModel.insertMany(sampleProducts);
+    console.log('✅ Sample products added');
+  }
+};
+
+// Start server
+mongoose.connection.once('open', async () => {
+  await initializeAdmin();
+  await initializeProducts();
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, () => {
+    console.log(`\n🚀 Server running on http://localhost:${PORT}`);
+    console.log(`📋 Admin Login: admin@firesafety.com / admin123`);
+    console.log(`\n💳 Payment Gateways Configured:`);
+    console.log(`   - Razorpay: ${process.env.RAZORPAY_KEY_ID ? '✅' : '❌ Not configured'}`);
+    console.log(`   - Cashfree: ${process.env.CASHFREE_APP_ID ? '✅' : '❌ Not configured'}`);
+    console.log(`\n📋 API endpoints:`);
+    console.log(`   - POST /api/auth/login - User login`);
+    console.log(`   - POST /api/payments/razorpay/create-order - Create Razorpay order`);
+    console.log(`   - POST /api/payments/razorpay/verify - Verify Razorpay payment`);
+    console.log(`   - POST /api/payments/cashfree/create-order - Create Cashfree order`);
+    console.log(`   - GET /api/payments/cashfree/verify/:orderId - Verify Cashfree payment`);
+    console.log(`   - GET /api/payments/status/:orderId - Get payment status\n`);
+  });
+});
+
+mongoose.connection.on('error', (err) => {
+  console.error('❌ MongoDB connection error:', err);
+});
+
+// Payment Settings Routes
+const paymentSettingsRoutes = require('./routes/paymentSettings');
+app.use('/api/payment-settings', paymentSettingsRoutes);
+
+// Update the listen line to bind to all interfaces
+// Find the line with app.listen and replace it
+// The current line should be changed from:
+// app.listen(PORT, () => {
+// to:
+// app.listen(PORT, '0.0.0.0', () => {
