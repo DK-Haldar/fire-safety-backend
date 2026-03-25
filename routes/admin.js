@@ -26,7 +26,6 @@ router.get('/stats', auth, adminOnly, async (req, res) => {
     const pendingOrders = await Order.countDocuments({ status: 'pending' });
     const totalProducts = await Product.countDocuments();
     const totalServices = await Service.countDocuments();
-    const pendingServices = await ServiceBooking.countDocuments({ status: 'pending' });
     
     res.json({
       totalUsers,
@@ -34,15 +33,14 @@ router.get('/stats', auth, adminOnly, async (req, res) => {
       totalRevenue: totalRevenue[0]?.total || 0,
       pendingOrders,
       totalProducts,
-      totalServices,
-      pendingServices
+      totalServices
     });
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-// ==================== USER MANAGEMENT ====================
+// Users list
 router.get('/users', auth, adminOnly, async (req, res) => {
   try {
     const users = await User.find().select('-password').sort({ createdAt: -1 });
@@ -52,7 +50,7 @@ router.get('/users', auth, adminOnly, async (req, res) => {
   }
 });
 
-// ==================== ORDER MANAGEMENT ====================
+// Orders list
 router.get('/orders', auth, adminOnly, async (req, res) => {
   try {
     const orders = await Order.find().populate('user', 'name email').sort({ createdAt: -1 });
@@ -62,6 +60,7 @@ router.get('/orders', auth, adminOnly, async (req, res) => {
   }
 });
 
+// Update order status
 router.put('/orders/:id/status', auth, adminOnly, async (req, res) => {
   try {
     const order = await Order.findByIdAndUpdate(req.params.id, { status: req.body.status }, { new: true });
@@ -71,7 +70,7 @@ router.put('/orders/:id/status', auth, adminOnly, async (req, res) => {
   }
 });
 
-// ==================== PRODUCT MANAGEMENT (CRUD) ====================
+// Products list
 router.get('/products', auth, adminOnly, async (req, res) => {
   try {
     const products = await Product.find().sort({ createdAt: -1 });
@@ -81,16 +80,7 @@ router.get('/products', auth, adminOnly, async (req, res) => {
   }
 });
 
-router.get('/products/:id', auth, adminOnly, async (req, res) => {
-  try {
-    const product = await Product.findById(req.params.id);
-    if (!product) return res.status(404).json({ message: 'Product not found' });
-    res.json(product);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
+// Create product
 router.post('/products', auth, adminOnly, async (req, res) => {
   try {
     const product = new Product(req.body);
@@ -101,6 +91,7 @@ router.post('/products', auth, adminOnly, async (req, res) => {
   }
 });
 
+// Update product
 router.put('/products/:id', auth, adminOnly, async (req, res) => {
   try {
     const product = await Product.findByIdAndUpdate(req.params.id, req.body, { new: true });
@@ -110,16 +101,17 @@ router.put('/products/:id', auth, adminOnly, async (req, res) => {
   }
 });
 
+// Delete product
 router.delete('/products/:id', auth, adminOnly, async (req, res) => {
   try {
     await Product.findByIdAndDelete(req.params.id);
-    res.json({ message: 'Product deleted successfully' });
+    res.json({ message: 'Product deleted' });
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-// ==================== SERVICE MANAGEMENT (CRUD) ====================
+// Services list
 router.get('/services', auth, adminOnly, async (req, res) => {
   try {
     const services = await Service.find().sort({ createdAt: -1 });
@@ -129,16 +121,7 @@ router.get('/services', auth, adminOnly, async (req, res) => {
   }
 });
 
-router.get('/services/:id', auth, adminOnly, async (req, res) => {
-  try {
-    const service = await Service.findById(req.params.id);
-    if (!service) return res.status(404).json({ message: 'Service not found' });
-    res.json(service);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
+// Create service
 router.post('/services', auth, adminOnly, async (req, res) => {
   try {
     const service = new Service(req.body);
@@ -149,6 +132,7 @@ router.post('/services', auth, adminOnly, async (req, res) => {
   }
 });
 
+// Update service
 router.put('/services/:id', auth, adminOnly, async (req, res) => {
   try {
     const service = await Service.findByIdAndUpdate(req.params.id, req.body, { new: true });
@@ -158,29 +142,21 @@ router.put('/services/:id', auth, adminOnly, async (req, res) => {
   }
 });
 
+// Delete service
 router.delete('/services/:id', auth, adminOnly, async (req, res) => {
   try {
     await Service.findByIdAndDelete(req.params.id);
-    res.json({ message: 'Service deleted successfully' });
+    res.json({ message: 'Service deleted' });
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
   }
 });
 
-// ==================== SERVICE BOOKINGS ====================
-router.get('/service-bookings', auth, adminOnly, async (req, res) => {
+// Service bookings
+router.get('/bookings', auth, adminOnly, async (req, res) => {
   try {
     const bookings = await ServiceBooking.find().populate('user', 'name email').sort({ createdAt: -1 });
     res.json(bookings);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-router.put('/service-bookings/:id/status', auth, adminOnly, async (req, res) => {
-  try {
-    const booking = await ServiceBooking.findByIdAndUpdate(req.params.id, { status: req.body.status }, { new: true });
-    res.json(booking);
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
   }
