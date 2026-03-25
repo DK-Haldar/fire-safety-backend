@@ -1,7 +1,9 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
-require('dotenv').config();
+const dotenv = require('dotenv');
+
+dotenv.config();
 
 const app = express();
 
@@ -9,73 +11,38 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Simple test route
-app.get('/', (req, res) => {
-  res.json({ 
-    message: 'Fire Safety Pro API is running!',
-    status: 'active',
-    timestamp: new Date()
-  });
-});
-
-app.get('/health', (req, res) => {
-  res.json({ 
-    status: 'healthy',
-    uptime: process.uptime(),
-    timestamp: new Date()
-  });
-});
-
-// Import routes (if they exist)
-try {
-  const authRoutes = require('./routes/auth');
-  const productRoutes = require('./routes/products');
-  const serviceRoutes = require('./routes/services');
-  const orderRoutes = require('./routes/orders');
-  const dashboardRoutes = require('./routes/dashboard');
-  
-  app.use('/api/auth', authRoutes);
-  app.use('/api/products', productRoutes);
-  app.use('/api/services', serviceRoutes);
-  app.use('/api/orders', orderRoutes);
-  app.use('/api/dashboard', dashboardRoutes);
-  
-  console.log('✅ Routes loaded successfully');
-} catch (error) {
-  console.log('⚠️ Some routes not loaded:', error.message);
-}
-
 // MongoDB Connection
-const PORT = process.env.PORT || 5000;
-const MONGODB_URI = process.env.MONGODB_URI;
+mongoose.connect(process.env.MONGODB_URI)
+  .then(() => console.log('✅ MongoDB Connected'))
+  .catch(err => console.log('❌ MongoDB Error:', err));
 
-if (MONGODB_URI) {
-  mongoose.connect(MONGODB_URI)
-    .then(() => {
-      console.log('✅ MongoDB Connected');
-      app.listen(PORT, () => {
-        console.log(`🚀 Server running on port ${PORT}`);
-      });
-    })
-    .catch(err => {
-      console.error('❌ MongoDB Error:', err.message);
-      app.listen(PORT, () => {
-        console.log(`⚠️ Server running without database on port ${PORT}`);
-      });
-    });
-} else {
-  console.log('⚠️ No MongoDB URI provided');
-  app.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
-  });
-}
+// Import Routes
+const authRoutes = require('./routes/auth');
+const productRoutes = require('./routes/products');
+const orderRoutes = require('./routes/orders');
+const serviceRoutes = require('./routes/services');
+const adminRoutes = require('./routes/admin');
+const paymentRoutes = require('./routes/payments');
 
-// Health check endpoint for Railway
+// Use Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/products', productRoutes);
+app.use('/api/orders', orderRoutes);
+app.use('/api/services', serviceRoutes);
+app.use('/api/admin', adminRoutes);
+app.use('/api/payments', paymentRoutes);
+
+// Health check
 app.get('/health', (req, res) => {
-  res.status(200).json({
-    status: 'healthy',
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString(),
-    database: mongoose.connection.readyState === 1 ? 'connected' : 'disconnected'
-  });
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Root endpoint
+app.get('/', (req, res) => {
+  res.json({ message: 'Fire Safety Pro API is running!', status: 'active', timestamp: new Date().toISOString() });
+});
+
+const PORT = process.env.PORT || 5000;
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 Server running on port ${PORT}`);
 });

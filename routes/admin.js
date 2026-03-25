@@ -36,6 +36,7 @@ router.get('/stats', auth, adminOnly, async (req, res) => {
       totalServices
     });
   } catch (error) {
+    console.error('Stats error:', error);
     res.status(500).json({ message: 'Server error' });
   }
 });
@@ -147,16 +148,6 @@ router.delete('/services/:id', auth, adminOnly, async (req, res) => {
   try {
     await Service.findByIdAndDelete(req.params.id);
     res.json({ message: 'Service deleted' });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error' });
-  }
-});
-
-// Service bookings
-router.get('/bookings', auth, adminOnly, async (req, res) => {
-  try {
-    const bookings = await ServiceBooking.find().populate('user', 'name email').sort({ createdAt: -1 });
-    res.json(bookings);
   } catch (error) {
     res.status(500).json({ message: 'Server error' });
   }
